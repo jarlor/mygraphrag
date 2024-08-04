@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "mygraphrag"
+version = "0.1.0"
+description = ""
+authors = ["jarlor <zjl58960902@outlook.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+# 使用环境标记来限制graphrag的python版本
+graphrag = {version = "^0.2.0", python = ">=3.10,<3.13"}
+streamlit = "^1.37.0"
+langchain-openai = "^0.1.20"
+pydantic-settings = "^2.4.0"
+fastapi = ">=0.103.0,<0.104.0"
+uvicorn = ">=0.20.0,<0.21.0"
+tiktoken = ">=0.7.0,<0.8.0"
+neo4j-rust-ext = "5.22.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
