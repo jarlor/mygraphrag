@@ -128,6 +128,8 @@ async def generate_chunks(callback, request_model, future: gtypes.TypedFuture[Se
     usage = None
     while not future.done():
         async for token in callback.generate_tokens():
+            if future.done():
+                break
             if token == CustomSearchCallback.stop_sign:
                 usage = callback.usage
                 break
@@ -149,57 +151,37 @@ async def generate_chunks(callback, request_model, future: gtypes.TypedFuture[Se
             )
             yield f"data: {chunk.json()}\n\n"
 
-            if future.done():
-                break
+    result: SearchResult = future.result()
+    reference = utils.get_reference(result.response)
+    if reference:
+        index_id = request_model.removesuffix("-global").removesuffix("-local")
+        content = utils.generate_ref_links(reference, index_id)
 
-    finish_reason = 'stop'
-    chunk = ChatCompletionChunk(
-        id=f"chatcmpl-{uuid.uuid4().hex}",
-        created=int(time.time()),
-        model=request_model,
-        object="chat.completion.chunk",
-        choices=[
-            Choice(
-                index=len(callback.response),
-                finish_reason=finish_reason,
-                delta=ChoiceDelta(
-                    role="assistant",
-                    # content=result.context_data["entities"].head().to_string()
-                    content=''
-                )
-            ),
-        ],
-        usage=usage
-    )
-    yield f"data: {chunk.json()}\n\n"
-
-    # result: SearchResult = future.result()
-    # content = ""
-    # reference = utils.get_reference(result.response)
-    # if reference:
-    #     index_id = request_model.removesuffix("-global").removesuffix("-local")
-    #     content = f"\n{utils.generate_ref_links(reference, index_id)}"
-    # finish_reason = 'stop'
-    # chunk = ChatCompletionChunk(
-    #     id=f"chatcmpl-{uuid.uuid4().hex}",
-    #     created=int(time.time()),
-    #     model=request_model,
-    #     object="chat.completion.chunk",
-    #     choices=[
-    #         Choice(
-    #             index=len(callback.response) - 1,
-    #             finish_reason=finish_reason,
-    #             delta=ChoiceDelta(
-    #                 role="assistant",
-    #                 # content=result.context_data["entities"].head().to_string()
-    #                 content=content
-    #             )
-    #         ),
-    #     ],
-    #     usage=usage
-    # )
-    # yield f"data: {chunk.json()}\n\n"
-    # yield f"data: [DONE]\n\n"
+        for idx, ref in enumerate(content):
+            if idx == 0:
+                ref = "\n## 参考\n" + ref
+            if idx == len(content) - 1:
+                finish_reason = 'stop'
+            else:
+                finish_reason = None
+            chunk = ChatCompletionChunk(
+                id=f"chatcmpl-{uuid.uuid4().hex}",
+                created=int(time.time()),
+                model=request_model,
+                object="chat.completion.chunk",
+                choices=[
+                    Choice(
+                        index=len(callback.response) - 1,
+                        finish_reason=finish_reason,
+                        delta=ChoiceDelta(
+                            role="assistant",
+                            content=f"{ref}\n"
+                        )
+                    ),
+                ],
+                usage=usage
+            )
+            yield f"data: {chunk.json()}\n\n"
 
 
 async def initialize_search(request: gtypes.ChatCompletionRequest, search: BaseSearch, context: str = None):
@@ -217,7 +199,8 @@ async def handle_sync_response(request, search, conversation_history):
     reference = utils.get_reference(response)
     if reference:
         index_id = request.model.removesuffix("-global").removesuffix("-local")
-        response += f"\n{utils.generate_ref_links(reference, index_id)}"
+        ref_content = '\n'.join(utils.generate_ref_links(reference, index_id))
+        response += f"\n{ref_content}"
     completion = ChatCompletion(
         id=f"chatcmpl-{uuid.uuid4().hex}",
         created=int(time.time()),

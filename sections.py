@@ -75,7 +75,6 @@ def show_chat(index_dir_path, server_url="http://localhost:20213/v1"):
 
     # Accept user input
     if prompt := st.chat_input("Here input your question"):
-        print(st.session_state.messages)
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
         # Display user message in chat message container
@@ -214,6 +213,11 @@ def create_new_index(root_index_path):
 
         # prompt tuning
         if domain or language:
+            with open(setting_file, 'r') as f:
+                config = yaml.safe_load(f)
+                config['llm']['model'] = 'gpt-4-turbo'  # !!! use best model when prompt tuning
+            with open(setting_file, 'w') as f:
+                yaml.dump(config, f)
             with st.spinner('Prompt Tuning...'):
                 process = multiprocessing.Process(target=prompt_tuning, args=(index_dir_path, domain, language))
                 process.start()
@@ -223,6 +227,11 @@ def create_new_index(root_index_path):
 
         # begin indexing
         with st.spinner('Indexing...'):
+            with open(setting_file, 'r') as f:
+                config = yaml.safe_load(f)
+                config['llm']['model'] = st.session_state.llm_model
+            with open(setting_file, 'w') as f:
+                yaml.dump(config, f)
             process = multiprocessing.Process(target=begin_indexing, args=(index_dir_path,))
             process.start()
             process.join()
